@@ -1,0 +1,31 @@
+# Separation-of-Duties role: read-only across the governance plane and
+# any owned Jobs. The auditor reads everything but mutates nothing —
+# the role's value is exactly this asymmetry. The audit trail itself
+# (pkg/audit local-filesystem chain) lives outside the apiserver, so
+# the auditor identity additionally needs filesystem access to the
+# audit path; that is granted out-of-band (volume mount, PV, etc.).
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: sentinel-auditor
+  labels:
+    app.kubernetes.io/name: sentinel
+    app.kubernetes.io/component: rbac
+rules:
+- apiGroups:
+  - sentinel.sentinel.io
+  resources:
+  - governancescans
+  - governancescans/status
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - batch
+  resources:
+  - jobs
+  verbs:
+  - get
+  - list
+  - watch

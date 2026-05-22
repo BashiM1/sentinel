@@ -1,0 +1,77 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "sentinel.controllerName" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "sentinel.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "sentinel.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "sentinel.selectorLabels" . | nindent 8 }}
+    spec:
+      serviceAccountName: {{ include "sentinel.serviceAccountName" . }}
+      securityContext:
+        runAsNonRoot: true
+      containers:
+        - name: manager
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          # Metrics are disabled by default (--metrics-bind-address=0)
+          # because they require TLS certs we do not set up in this
+          # baseline chart. Operators who want metrics should enable
+          # them via an override and provision certs through cert-manager.
+          args:
+            - --health-probe-bind-address=:8081
+          env:
+            - name: SENTINEL_AUDIT_PATH
+              value: {{ .Values.audit.path | quote }}
+            - name: SENTINEL_AUDIT_KEY
+              # TODO(security): override via a Kubernetes Secret in
+              # production; the chart's audit.key value-default is for
+              # local kind testing only.
+              value: {{ .Values.audit.key | quote }}
+          ports:
+            - name: probe
+              containerPort: 8081
+              protocol: TCP
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: probe
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: probe
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: {{ .Values.resources.requests.cpu }}
+              memory: {{ .Values.resources.requests.memory }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
+          volumeMounts:
+            - name: audit
+              mountPath: {{ .Values.audit.path }}
+            # /tmp needed because read-only root filesystem; controller
+            # runtime may write transient files during startup.
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: audit
+          emptyDir: {}
+        - name: tmp
+          emptyDir: {}
+      terminationGracePeriodSeconds: 10

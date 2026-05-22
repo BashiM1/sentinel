@@ -1,0 +1,282 @@
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.20.1
+  name: governancescans.sentinel.sentinel.io
+spec:
+  group: sentinel.sentinel.io
+  names:
+    kind: GovernanceScan
+    listKind: GovernanceScanList
+    plural: governancescans
+    singular: governancescan
+  scope: Namespaced
+  versions:
+  - additionalPrinterColumns:
+    - jsonPath: .status.phase
+      name: Phase
+      type: string
+    - jsonPath: .status.findingsCount
+      name: Findings
+      type: integer
+    - jsonPath: .status.lastScanTime
+      name: LastScan
+      type: date
+    - jsonPath: .metadata.creationTimestamp
+      name: Age
+      type: date
+    name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        description: GovernanceScan is the Schema for the governancescans API.
+        properties:
+          apiVersion:
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+            type: string
+          kind:
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: GovernanceScanSpec is the desired state of a governance scan.
+            properties:
+              approval:
+                description: ApprovalConfig controls whether remediation requires
+                  a human decision.
+                properties:
+                  required:
+                    default: true
+                    description: |-
+                      required gates remediation behind an approval decision when true.
+                      Defaults to true at the apiserver via the kubebuilder default marker.
+                      The pointer type matters: a plain `bool` with `omitempty` would erase
+                      an explicit `false` on the wire, which the apiserver would then re-
+                      default back to `true`. Pointer + omitempty lets callers express "I
+                      explicitly mean false" by setting the value, distinct from "I did
+                      not specify it" by leaving it nil.
+                    type: boolean
+                type: object
+              audit:
+                description: AuditConfig selects the backend that receives HMAC-chained
+                  audit entries.
+                properties:
+                  backend:
+                    default: local
+                    description: |-
+                      backend names the audit sink. Only "local" (filesystem) is supported
+                      in M0. GCS and S3 backends are Phase 2.
+                    enum:
+                    - local
+                    type: string
+                  path:
+                    description: |-
+                      path is the on-disk location for the local backend. Required when
+                      backend is "local".
+                    type: string
+                type: object
+              scanner:
+                description: ScannerConfig selects which scanner runs and how often.
+                properties:
+                  profile:
+                    description: |-
+                      profile names a scanner-specific configuration bundle (for example,
+                      "owasp-llm-top10" for Garak).
+                    type: string
+                  schedule:
+                    description: |-
+                      schedule, if set, runs the scanner on a cron schedule. Leaving this
+                      empty means the scan runs once when the resource is reconciled.
+                    type: string
+                  type:
+                    default: garak
+                    description: type names the scanner implementation. Only "garak"
+                      is supported in M0.
+                    type: string
+                type: object
+              target:
+                description: |-
+                  ScanTarget identifies the inference endpoint to scan. The endpoint must
+                  already exist in the cluster and be reachable from the scanner Job's pod.
+                properties:
+                  port:
+                    description: port is the TCP port on the target Service.
+                    format: int32
+                    maximum: 65535
+                    minimum: 1
+                    type: integer
+                  service:
+                    description: |-
+                      service is the cluster-internal DNS name of the target Service (for
+                      example, llm-service.ml.svc.cluster.local).
+                    type: string
+                required:
+                - port
+                - service
+                type: object
+            required:
+            - audit
+            - scanner
+            - target
+            type: object
+          status:
+            description: GovernanceScanStatus is the observed state of a governance
+              scan.
+            properties:
+              approval:
+                description: |-
+                  ApprovalStatus records the decision that gates remediation. Binary in M0:
+                  approve-all or reject-all. Per-finding granularity is Phase 2.
+                properties:
+                  approver:
+                    type: string
+                  decision:
+                    enum:
+                    - approved
+                    - rejected
+                    type: string
+                  timestamp:
+                    format: date-time
+                    type: string
+                required:
+                - approver
+                - decision
+                - timestamp
+                type: object
+              auditRef:
+                description: |-
+                  auditRef is the hash of the most recent audit entry for this scan.
+                  Combined with the audit chain it lets verifiers prove that no entries
+                  referencing this scan have been tampered with.
+                type: string
+              conditions:
+                items:
+                  description: Condition contains details for one aspect of the current
+                    state of this API Resource.
+                  properties:
+                    lastTransitionTime:
+                      description: |-
+                        lastTransitionTime is the last time the condition transitioned from one status to another.
+                        This should be when the underlying condition changed.  If that is not known, then using the time when the API field changed is acceptable.
+                      format: date-time
+                      type: string
+                    message:
+                      description: |-
+                        message is a human readable message indicating details about the transition.
+                        This may be an empty string.
+                      maxLength: 32768
+                      type: string
+                    observedGeneration:
+                      description: |-
+                        observedGeneration represents the .metadata.generation that the condition was set based upon.
+                        For instance, if .metadata.generation is currently 12, but the .status.conditions[x].observedGeneration is 9, the condition is out of date
+                        with respect to the current state of the instance.
+                      format: int64
+                      minimum: 0
+                      type: integer
+                    reason:
+                      description: |-
+                        reason contains a programmatic identifier indicating the reason for the condition's last transition.
+                        Producers of specific condition types may define expected values and meanings for this field,
+                        and whether the values are considered a guaranteed API.
+                        The value should be a CamelCase string.
+                        This field may not be empty.
+                      maxLength: 1024
+                      minLength: 1
+                      pattern: ^[A-Za-z]([A-Za-z0-9_,:]*[A-Za-z0-9_])?$
+                      type: string
+                    status:
+                      description: status of the condition, one of True, False, Unknown.
+                      enum:
+                      - "True"
+                      - "False"
+                      - Unknown
+                      type: string
+                    type:
+                      description: type of condition in CamelCase or in foo.example.com/CamelCase.
+                      maxLength: 316
+                      pattern: ^([a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*/)?(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])$
+                      type: string
+                  required:
+                  - lastTransitionTime
+                  - message
+                  - reason
+                  - status
+                  - type
+                  type: object
+                type: array
+                x-kubernetes-list-map-keys:
+                - type
+                x-kubernetes-list-type: map
+              findings:
+                items:
+                  description: |-
+                    Finding is a single issue produced by the scanner. The ID is stable for
+                    a given Category+Description combination so that re-scans can correlate.
+                  properties:
+                    category:
+                      description: |-
+                        category is the taxonomy bucket (for example, "LLM01" for the OWASP
+                        LLM Top 10 category for prompt injection).
+                      type: string
+                    description:
+                      type: string
+                    id:
+                      type: string
+                    severity:
+                      enum:
+                      - critical
+                      - high
+                      - medium
+                      - low
+                      type: string
+                  required:
+                  - category
+                  - description
+                  - id
+                  - severity
+                  type: object
+                type: array
+              findingsCount:
+                description: |-
+                  findingsCount mirrors len(Findings). It exists so the additionalPrinterColumn
+                  "Findings" can render a scalar count without clients having to evaluate the
+                  array length. The reconciler is the sole writer and must keep it in sync.
+                format: int32
+                type: integer
+              lastScanTime:
+                format: date-time
+                type: string
+              phase:
+                description: |-
+                  phase is the current point in the scan lifecycle. The reconciler is
+                  the sole writer of this field.
+                enum:
+                - Pending
+                - Scanning
+                - FindingsDetected
+                - AwaitingApproval
+                - Approved
+                - Remediating
+                - Completed
+                - Failed
+                type: string
+            type: object
+        required:
+        - spec
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}

@@ -1,0 +1,43 @@
+# Separation-of-Duties role: bind this to the identity that runs the
+# remediation handler. Has the apps/deployments and deployments/scale
+# verbs needed for annotate + scale-to-zero. Does NOT have create/delete
+# on GovernanceScans (policy admin) or batch/jobs (scanner).
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: sentinel-executor
+  labels:
+    app.kubernetes.io/name: sentinel
+    app.kubernetes.io/component: rbac
+rules:
+- apiGroups:
+  - sentinel.sentinel.io
+  resources:
+  - governancescans
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - sentinel.sentinel.io
+  resources:
+  - governancescans/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - apps
+  resources:
+  - deployments
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - apps
+  resources:
+  - deployments/scale
+  verbs:
+  - patch
+  - update

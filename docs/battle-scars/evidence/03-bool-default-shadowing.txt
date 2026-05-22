@@ -1,0 +1,54 @@
+Battle scar 03 — `bool` + `omitempty` + apiserver defaulting silently re-defaults `false`
+Captured retroactively: 2026-05-22
+Source: Ginkgo failure output during Prompt 2
+
+=== Failing assertion — "approval not required" test ===
+$ make test  (Prompt 2, post-implementation)
+[...]
+• [FAILED] [0.017 seconds]
+GovernanceScan controller state machine approval not required [It] skips AwaitingApproval and records a system:auto approval
+/home/bashm1/Development/Personal/sentinel/internal/controller/governancescan_controller_test.go:250
+
+  Timeline >>
+  STEP: FindingsDetected -> Approved directly (no AwaitingApproval phase) @ 05/21/26 23:57:17.77
+  [FAILED] in [It] - .../governancescan_controller_test.go:259 @ 05/21/26 23:57:17.774
+  << Timeline
+
+  [FAILED] Expected
+      <string>: AwaitingApproval
+  to equal
+      <string>: Approved
+  In [It] at: .../governancescan_controller_test.go:259 @ 05/21/26 23:57:17.774
+
+Ran 6 of 6 Specs in 5.536 seconds
+FAIL! -- 5 Passed | 1 Failed | 0 Pending | 0 Skipped
+
+=== Original API definition (the bug) ===
+type ApprovalConfig struct {
+    // +kubebuilder:default=true
+    // +optional
+    Required bool `json:"required,omitempty"`
+}
+
+The chain:
+  - Go zero value: Required = false
+  - JSON marshal with omitempty: field absent from request body
+  - apiserver sees no `required` field, applies default=true
+  - stored object: Required = true
+  - Reconciler's `if scan.Spec.Approval.Required { /* waitApproval */ }` fires
+  - Test asserts Approved, gets AwaitingApproval. Failure.
+
+=== Fix (api/v1alpha1/governancescan_types.go) ===
+type ApprovalConfig struct {
+    // +kubebuilder:default=true
+    // +optional
+    Required *bool `json:"required,omitempty"`
+}
+
+func (a ApprovalConfig) IsRequired() bool {
+    if a.Required == nil { return true }   // matches kubebuilder default
+    return *a.Required
+}
+
+The pointer + omitempty preserves the explicit-false signal: nil means
+"unset, apply default" and a non-nil pointer always serialises (true OR false).

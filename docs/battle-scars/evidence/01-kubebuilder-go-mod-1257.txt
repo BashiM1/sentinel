@@ -1,0 +1,44 @@
+Battle scar 01 — Kubebuilder v4.14 hard-pins `go 1.25.7`
+Captured retroactively: 2026-05-22
+Source: terminal output during Prompt 1 (M0 scaffold)
+
+=== Pre-scaffold environment ===
+$ kubebuilder version
+KubeBuilder:          v4.14.0
+Kubernetes:           1.35.0
+Git Commit:           505d63f3b272472b5556ff650f03ba64d885cf3a
+Build Date:           2026-04-29T07:19:23Z
+Go OS/Arch:           linux/amd64
+
+$ go version
+go version go1.23.9 linux/amd64
+
+=== kubebuilder init (truncated; key lines) ===
+$ kubebuilder init --domain sentinel.io --repo github.com/BashiM1/sentinel
+go: downloading github.com/google/cel-go v0.26.0
+[... many downloads ...]
+Next: define a resource with:
+$ kubebuilder create api
+
+=== Surprise observed in resulting go.mod ===
+$ head -5 go.mod
+module github.com/BashiM1/sentinel
+
+go 1.25.7
+
+require (
+
+=== Auto-toolchain kicked in on next operation ===
+$ kubebuilder create api --group sentinel --version v1alpha1 --kind GovernanceScan --resource --controller
+[... scaffold output ...]
+Running make
+mkdir -p "/home/bashm1/Development/Personal/sentinel/bin"
+Downloading sigs.k8s.io/controller-tools/cmd/controller-gen@v0.20.1
+go: downloading sigs.k8s.io/controller-tools v0.20.1
+go: sigs.k8s.io/controller-tools@v0.20.1 requires go >= 1.25.0; switching to go1.25.10
+go: downloading go1.25.10 (linux/amd64)
+
+=== Confirmation that toolchain landed in module cache, not GOROOT ===
+$ go env GOTOOLCHAIN GOROOT
+auto
+/home/bashm1/.claude-sentinel-home/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.7.linux-amd64

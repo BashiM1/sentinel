@@ -1,0 +1,15 @@
+apiVersion: v2
+name: sentinel
+description: |
+  Kubernetes operator that manages a governance lifecycle for AI
+  workloads: scan registered inference endpoints, gate remediation
+  behind human approval, write a tamper-evident audit trail.
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+keywords:
+  - ai
+  - governance
+  - llm-security
+  - garak
+home: https://github.com/BashiM1/sentinel

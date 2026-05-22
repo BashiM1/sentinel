@@ -1,0 +1,54 @@
+Battle scar 02 — Auto-downloaded Go toolchain is missing `covdata`
+Captured retroactively: 2026-05-22
+Source: `make test` output during Prompt 2 + toolchain dir inspection
+
+=== `make test` exit 1 despite all specs passing ===
+$ make test
+[... build steps elided ...]
+KUBEBUILDER_ASSETS="/home/bashm1/Development/Personal/sentinel/bin/k8s/1.35.0-linux-amd64" go test $(go list ./... | grep -v /e2e) -coverprofile cover.out
+# github.com/BashiM1/sentinel/api/v1alpha1
+go: no such tool "covdata"
+# github.com/BashiM1/sentinel/cmd
+go: no such tool "covdata"
+# github.com/BashiM1/sentinel/test/utils
+go: no such tool "covdata"
+ok  	github.com/BashiM1/sentinel/internal/controller	5.312s	coverage: 91.7% of statements
+make: *** [Makefile:64: test] Error 1
+
+=== Direct invocation passes cleanly ===
+$ KUBEBUILDER_ASSETS="/home/bashm1/Development/Personal/sentinel/bin/k8s/1.35.0-linux-amd64" go test ./internal/controller/...
+ok  	github.com/BashiM1/sentinel/internal/controller	5.708s
+
+=== Root cause — toolchain ships only 7 of ~15 standard tools ===
+$ ls /home/bashm1/.claude-sentinel-home/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.7.linux-amd64/pkg/tool/linux_amd64/
+asm
+cgo
+compile
+cover
+link
+preprofile
+vet
+
+=== Comparison: a full SDK install would include all of these ===
+$ ls /usr/local/go/pkg/tool/linux_amd64/
+addr2line
+asm
+buildid
+cgo
+compile
+covdata          <-- missing from the toolchain mirror
+cover
+doc
+fix
+link
+[... and others ...]
+
+=== Cleanup of the partial toolchain is blocked by read-only module cache perms ===
+$ rm -rf /home/bashm1/.claude-sentinel-home/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.7.linux-amd64
+rm: cannot remove '.../codereview.cfg': Permission denied
+rm: cannot remove '.../VERSION': Permission denied
+rm: cannot remove '.../bin/go': Permission denied
+[... many lines ...]
+
+Workaround: `go install golang.org/dl/go1.25.10@latest && ~/go/bin/go1.25.10 download` for a full SDK.
+Until then: `KUBEBUILDER_ASSETS=... go test ./internal/controller/...` direct.

@@ -1,0 +1,24 @@
+# Separation-of-Duties role: bind this to the identity that authors
+# scan policy. Full CRUD on the GovernanceScan resource, but no
+# permissions on status, Jobs, Pods, or Deployments — so a policy
+# admin cannot themselves approve, scan, or remediate.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: sentinel-policy-admin
+  labels:
+    app.kubernetes.io/name: sentinel
+    app.kubernetes.io/component: rbac
+rules:
+- apiGroups:
+  - sentinel.sentinel.io
+  resources:
+  - governancescans
+  verbs:
+  - create
+  - update
+  - patch
+  - delete
+  - get
+  - list
+  - watch

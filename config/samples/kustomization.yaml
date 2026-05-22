@@ -1,0 +1,4 @@
+## Append samples of your project ##
+resources:
+- sentinel_v1alpha1_governancescan.yaml
+# +kubebuilder:scaffold:manifestskustomizesamples

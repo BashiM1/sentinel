@@ -1,0 +1,64 @@
+Battle scar 07 — One phase transition per Reconcile, always
+Captured retroactively: 2026-05-22
+Source: user directive during Prompt 2 (no terminal output)
+
+This entry has no terminal evidence — it is a user-issued architectural
+rule, captured here because the rule is easy to violate by "optimising"
+the state machine without understanding the downstream cost.
+
+=== The directive (user message, verbatim) ===
+"Correct on all nine points. On the dual-transition: one phase transition
+per Reconcile call, always. Approved and Remediating are separate phases,
+each written in their own Reconcile pass with an immediate requeue
+between them. This makes every transition independently auditable when
+we wire pkg/audit/ in Prompt 7. Proceed"
+
+=== The temptation that prompted it ===
+While sketching the Prompt 2 state machine I considered collapsing
+"trivially-determined" transitions into one reconcile pass. Specifically:
+
+  AwaitingApproval — patched with approval=approved
+    → Approved        (transition 1)
+    → Remediating     (transition 2: also trivially follows since approval is set)
+
+These are mechanically determinable in one pass — observed approval +
+approved decision uniquely determines that Remediating is the next state
+after Approved. So why not skip a hop?
+
+=== Why bundling is wrong ===
+Prompt 7 adds an HMAC-chained audit trail where each chain entry hashes
+the previous and records ONE phase transition. If two transitions land
+in one Reconcile pass:
+  (a) They collapse into a single chain entry → the Approved→Remediating
+      transition has no independent evidence; only the bundled jump.
+  (b) Or the audit layer must inspect controller-internal state to split
+      them post hoc → audit and controller layers become coupled.
+
+One-transition-per-Reconcile keeps the chain-entry boundary identical to
+the reconcile boundary. That's the natural seam for an audit chain that
+wants per-transition signatures and tamper-evident history.
+
+=== Implementation ===
+internal/controller/governancescan_controller.go — `advance()` switch:
+  - "" -> Pending          (return Requeue: true)
+  - Pending -> Scanning    (return RequeueAfter: 10s, side effect: Job)
+  - Scanning -> Findings   (return Requeue: true, only when Job is done)
+  - Findings -> AwaitingApproval OR Approved   (one transition)
+  - AwaitingApproval -> Approved OR Failed     (one transition)
+  - Approved -> Remediating                    (return Requeue: true)  ← never bundled
+  - Remediating -> Completed                   (terminal)
+
+Every arm advances exactly one phase, then either Requeues for the next
+or blocks on external input. The happy-path test in
+governancescan_controller_test.go explicitly asserts that Approved and
+Remediating are reached via separate `drive()` calls.
+
+=== Memory pointer ===
+A feedback memory carries this rule forward across sessions:
+  ~/.claude-sentinel-home/.claude/projects/.../feedback_one_transition_per_reconcile.md
+
+=== Lesson ===
+Architectural rules that are easy to "optimise away" need their *reason*
+recorded somewhere durable, not just the rule. The temptation to bundle
+"obvious" transitions is real, and only the audit-chain rationale makes
+the cost of bundling visible.

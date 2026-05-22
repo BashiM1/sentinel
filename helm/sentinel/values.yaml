@@ -1,0 +1,26 @@
+# Default values for the sentinel chart.
+# Override per-environment via -f values-override.yaml or --set.
+
+image:
+  repository: sentinel-controller
+  tag: latest
+  pullPolicy: IfNotPresent
+
+replicaCount: 1
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+
+audit:
+  backend: local
+  path: /tmp/sentinel-audit
+  # Override in production. Mount a Kubernetes Secret instead of using
+  # an env-var literal: a Secret-mounted file at startup is the path
+  # called out in cmd/main.go's TODO(security).
+  key: sentinel-dev-key
+
+serviceAccount:
+  # If unset, defaults to "<release-name>-controller".
+  name: ""

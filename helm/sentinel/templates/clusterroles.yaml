@@ -1,0 +1,87 @@
+{{/*
+Separation-of-Duties ClusterRoles. Mirrored from config/rbac/. Not bound
+to any ServiceAccount by default — cluster admins bind these to the
+relevant teams. The chart ships them so a helm install puts the full
+governance plane in one cluster operation.
+*/}}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: sentinel-scanner
+  labels:
+    {{- include "sentinel.labels" . | nindent 4 }}
+    app.kubernetes.io/component: rbac
+rules:
+- apiGroups: ["sentinel.sentinel.io"]
+  resources: ["governancescans"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: ["sentinel.sentinel.io"]
+  resources: ["governancescans/status"]
+  verbs: ["get", "patch", "update"]
+- apiGroups: ["batch"]
+  resources: ["jobs"]
+  verbs: ["create", "get", "list", "watch", "delete"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: sentinel-approver
+  labels:
+    {{- include "sentinel.labels" . | nindent 4 }}
+    app.kubernetes.io/component: rbac
+rules:
+- apiGroups: ["sentinel.sentinel.io"]
+  resources: ["governancescans"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: ["sentinel.sentinel.io"]
+  resources: ["governancescans/status"]
+  verbs: ["get", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: sentinel-executor
+  labels:
+    {{- include "sentinel.labels" . | nindent 4 }}
+    app.kubernetes.io/component: rbac
+rules:
+- apiGroups: ["sentinel.sentinel.io"]
+  resources: ["governancescans"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: ["sentinel.sentinel.io"]
+  resources: ["governancescans/status"]
+  verbs: ["get", "patch", "update"]
+- apiGroups: ["apps"]
+  resources: ["deployments"]
+  verbs: ["get", "patch", "update"]
+- apiGroups: ["apps"]
+  resources: ["deployments/scale"]
+  verbs: ["patch", "update"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: sentinel-policy-admin
+  labels:
+    {{- include "sentinel.labels" . | nindent 4 }}
+    app.kubernetes.io/component: rbac
+rules:
+- apiGroups: ["sentinel.sentinel.io"]
+  resources: ["governancescans"]
+  verbs: ["create", "update", "patch", "delete", "get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: sentinel-auditor
+  labels:
+    {{- include "sentinel.labels" . | nindent 4 }}
+    app.kubernetes.io/component: rbac
+rules:
+- apiGroups: ["sentinel.sentinel.io"]
+  resources: ["governancescans", "governancescans/status"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: ["batch"]
+  resources: ["jobs"]
+  verbs: ["get", "list", "watch"]

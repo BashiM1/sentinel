@@ -1,0 +1,66 @@
+Battle scar 09 — Sandbox can't reach user's SSH agent or ~/.ssh/config
+Captured: 2026-05-22, immediately after attempting `git fetch origin`
+
+=== The setup ===
+The user's remote in this repo is:
+  origin  git@github.com-personal:BashiM1/sentinel.git (fetch/push)
+
+The `github.com-personal` host is an SSH-config alias in their REAL
+~/.ssh/config — it points github.com to a personal identity key
+distinct from any work key. Common pattern for multi-account GitHub
+users.
+
+=== The bite ===
+$ git fetch origin
+git@github.com: Permission denied (publickey).
+fatal: Could not read from remote repository.
+
+Note the error says `git@github.com:` (bare host) even though the
+configured URL uses `github.com-personal`. That's the smoking gun:
+ssh couldn't resolve the alias, so it fell back to the literal host.
+
+=== Why ===
+The sandbox redirects HOME:
+
+$ cat ~/.ssh/config
+cat: /home/bashm1/.claude-sentinel-home/.ssh/config: No such file or directory
+
+The user's real config is at /home/bashm1/.ssh/config. The sandbox
+runs with HOME=/home/bashm1/.claude-sentinel-home/ so ssh reads the
+empty/nonexistent config in the fake home, can't find the alias,
+and falls back to default behaviour with no available identity.
+
+Additionally:
+
+$ ssh-add -l
+Could not open a connection to your authentication agent.
+
+The SSH_AUTH_SOCK from the user's terminal session isn't inherited
+into the sandbox either, so even if config resolved, no identity
+would be available.
+
+=== Implication ===
+Anything that needs to talk to a private remote over SSH
+(`git fetch`, `git pull`, `git push`, `gh clone`, etc.) will fail
+from inside the sandbox. The user has to do these operations from
+their actual terminal, where the agent and config are live.
+
+The user CAN do `git remote add` / `git remote set-url` from inside
+the sandbox (no network) and can prep commits — but the push itself
+must run outside.
+
+=== Lesson ===
+Before promising to run anything that talks to a private remote,
+check `ssh-add -l` and `cat ~/.ssh/config`. If either is missing,
+surface the limit to the user before they wait on a push that
+won't happen. The remote-URL configuration is safe to do; the
+network operation is not.
+
+=== Workaround for this specific repo ===
+1. User commits + tags from their terminal (where their git identity
+   and ssh agent live).
+2. User runs `git push -u origin master` and `git push origin v0.1.0-m0`
+   from their terminal.
+3. I confirm afterwards via `git log --oneline` and `git ls-remote`
+   (the latter would still need their ssh — actually I can verify
+   the local side only).

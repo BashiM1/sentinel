@@ -1,0 +1,16 @@
+apiVersion: sentinel.sentinel.io/v1alpha1
+kind: GovernanceScan
+metadata:
+  name: example-scan
+spec:
+  target:
+    service: llm-service.ml.svc.cluster.local
+    port: 8080
+  scanner:
+    type: garak
+    profile: owasp-llm-top10
+  approval:
+    required: true
+  audit:
+    backend: local
+    path: /tmp/sentinel-audit

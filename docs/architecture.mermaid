@@ -1,0 +1,49 @@
+flowchart TB
+    subgraph cluster["Kubernetes cluster"]
+        direction TB
+
+        operator[Sentinel controller<br/>Deployment in sentinel-system]
+
+        subgraph cr["GovernanceScan CR (one resource, all lifecycle)"]
+            spec[spec: target, scanner, approval, audit]
+            status[status: phase, findings, approval, auditRef, conditions]
+        end
+
+        operator -->|watch| spec
+        operator -->|status updates| status
+
+        subgraph runtime["Default namespace runtime"]
+            direction LR
+            job[scan Job<br/>busybox image in M0;<br/>Garak image in M1]
+            target[Target Deployment<br/>inference endpoint]
+        end
+
+        operator -->|create owner-ref| job
+        operator -->|read pod logs| job
+        operator -->|annotate, scale-to-zero| target
+
+        subgraph auditvol["EmptyDir volume on controller pod"]
+            audit[/tmp/sentinel-audit/&lt;ns&gt;/&lt;scan&gt;/<br/>HMAC-SHA256 chained JSONL files]
+        end
+        operator -->|append per transition| audit
+    end
+
+    subgraph human["Human plane"]
+        direction TB
+        approver[Approver]
+        auditor[Auditor]
+        admin[Policy admin]
+    end
+
+    approver -->|"kubectl patch ... --subresource status<br/>(via hack/approve.sh or hack/reject.sh)"| status
+    admin -->|"kubectl apply ... -f scan.yaml"| spec
+
+    subgraph offline["Offline / out-of-cluster"]
+        ctl[sentinelctl verify<br/>HMAC-chain integrity check]
+    end
+
+    auditor -->|"kubectl cp + sentinelctl verify"| ctl
+    audit -.->|copied out by auditor| ctl
+
+    classDef todo stroke-dasharray:6,fill:#fff5b1
+    class job todo
